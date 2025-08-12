@@ -1,13 +1,12 @@
 # app/llm.py
-import openai
+from openai import OpenAI
 from typing import List, Dict
 from app.config import settings
-
-openai.api_key = settings.openai_api_key
 
 class LLMClient:
     def __init__(self):
         self.model = "gpt-3.5-turbo"
+        self.client = OpenAI(api_key=settings.openai_api_key)
     
     def generate_sql(self, natural_query: str, schema_context: str) -> Dict:
         """Generate SQL from natural language query"""
@@ -33,7 +32,7 @@ Natural language query: {natural_query}
 Generate the ClickHouse SQL query:"""
 
         try:
-            response = openai.chat.completions.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -66,7 +65,7 @@ Generate the ClickHouse SQL query:"""
 Explanation:"""
 
         try:
-            response = openai.chat.completions.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "user", "content": prompt}
