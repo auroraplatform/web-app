@@ -43,6 +43,7 @@ Generate the ClickHouse SQL query:"""
             )
             
             sql_query = response.choices[0].message.content.strip()
+            sql_query = ' '.join(sql_query.split())
             
             return {
                 "success": True,
