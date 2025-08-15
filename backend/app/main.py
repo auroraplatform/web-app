@@ -100,7 +100,6 @@ async def smart_query(request: NaturalQueryRequest):
 
     # Process with smart context retrieval
     result = query_processor.process_natural_query(request.query)
-    print(result)
     
     if result["success"]:
         execution_result = ch_client.execute_query(result["sql"], result["parameters"])

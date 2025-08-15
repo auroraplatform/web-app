@@ -93,7 +93,7 @@ class SchemaEmbedder:
             element = self._embedded_elements[description].copy()
             element['similarity'] = similarity
             relevant_elements.append(element)
-        
+               
         return relevant_elements
 
 schema_embedder = SchemaEmbedder()

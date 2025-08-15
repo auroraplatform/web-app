@@ -23,6 +23,7 @@ CRITICAL RULES:
 5. Use proper ClickHouse syntax with type annotations
 6. Extract parameter values from the natural language query
 7. Return response as JSON with 'sql' and 'parameters' fields
+8. When you're including a value to the sql statement, always add LIKE %<value>%
 
 Parameter format: {param_name:Type}
 - String values: {name:String}
@@ -33,15 +34,15 @@ Response format:
 {
   "sql": "SELECT * FROM events WHERE user_name = {user_name:String}",
   "parameters": {
-    "user_name": "John"
+    "user_name": "%John%"
   }
 }
 
 Examples:
 - "Show events for user John" → 
   {
-    "sql": "SELECT * FROM events WHERE user_name = {user_name:String}",
-    "parameters": {"user_name": "John"}
+    "sql": "SELECT * FROM events WHERE user_name LIKE {user_name:String}",
+    "parameters": {"user_name": "%John%"}
   }
 - "Count orders with amount greater than 100" →
   {

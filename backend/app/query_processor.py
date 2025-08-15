@@ -14,7 +14,7 @@ class QueryProcessor:
         
         # Step 1: Find relevant schema elements
         relevant_elements = self.schema_embedder.find_relevant_schema(
-            natural_query, top_k=10
+            natural_query, top_k=20
         )
         
         # Step 2: Extract relevant tables
@@ -22,7 +22,7 @@ class QueryProcessor:
         
         # Step 3: Build focused context
         focused_context = self._build_focused_context(relevant_elements, relevant_tables)
-        
+
         # Step 4: Generate SQL with focused context
         sql_result = self.llm_client.generate_sql(natural_query, focused_context)
         
@@ -81,7 +81,7 @@ class QueryProcessor:
         # Add most relevant columns
         if elements["columns"]:
             context += "Relevant columns:\n"
-            for col_element in elements["columns"][:8]:  # Limit to most relevant
+            for col_element in elements["columns"][:20]:  # Limit to most relevant
                 col_info = col_element["column_info"]
                 context += f"  - {col_info.name} ({col_info.type})"
                 if col_info.sample_values:
