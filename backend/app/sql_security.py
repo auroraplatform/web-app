@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 @dataclass
@@ -10,12 +10,10 @@ class SQLValidationResult:
 
 class SQLSecurityValidator:
     def __init__(self):
-        # Define allowed operations
         self.allowed_operations = {
             'SELECT', 'SHOW', 'DESCRIBE', 'EXPLAIN'
         }
         
-        # Define forbidden patterns
         self.forbidden_patterns = [
             r'\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|GRANT|REVOKE)\b',
             r'\b(UNION|EXEC|EXECUTE|xp_|sp_)\b',
@@ -26,10 +24,9 @@ class SQLSecurityValidator:
             r'<script',  # XSS attempts
         ]
         
-        # Define allowed table patterns (adjust based on your schema)
         self.allowed_table_patterns = [
-            r'^[a-zA-Z_][a-zA-Z0-9_]*$',  # Standard table names
-            r'^system\.(columns|tables|databases)$',  # System tables you allow
+            r'^[a-zA-Z_][a-zA-Z0-9_]*$',
+            r'^system\.(columns|tables|databases)$',
         ]
     
     def validate_sql(self, sql: str, user_context: Dict = None) -> SQLValidationResult:
@@ -46,13 +43,20 @@ class SQLSecurityValidator:
                     False, 
                     f"Forbidden operation or pattern detected: {pattern}"
                 )
-        
+
         # Check if operation is allowed
         operation = self._extract_operation(sql)
         if operation not in self.allowed_operations:
             return SQLValidationResult(
                 False,
                 f"Operation '{operation}' is not allowed. Allowed: {', '.join(self.allowed_operations)}"
+            )
+
+        # Check if tautology pattern is present
+        if not self._check_for_tautologies(sql):
+            return SQLValidationResult(
+                False,
+                "Potential tautology-based SQL injection detected"
             )
         
         # Extract and validate table names
@@ -63,7 +67,7 @@ class SQLSecurityValidator:
                 f"Invalid table names detected: {table_names}"
             )
         
-        # Additional security checks
+        # Additional query security checks
         if not self._check_query_complexity(sql):
             return SQLValidationResult(
                 False,
@@ -105,6 +109,20 @@ class SQLSecurityValidator:
             return False
         
         return True
+    
+    def _check_for_tautologies(self, sql: str) -> bool:
+        """Check for potential tautology-based SQL injection"""
+        tautology_patterns = [
+            r'\b\d+\s*=\s*\d+\b', # 1=1, 2=2, etc.
+            r'\bTRUE\s*=\s*TRUE\b',
+            r'\bFALSE\s*=\s*FALSE\b',
+            r'\b[a-zA-Z_]\w*\s*=\s*[a-zA-Z_]\w*\b', # variable=variable
+        ]
 
-# Global instance
+        for pattern in tautology_patterns:
+            if re.search(pattern, sql, re.IGNORECASE):
+                return False
+
+        return True
+
 sql_validator = SQLSecurityValidator()
