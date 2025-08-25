@@ -13,8 +13,8 @@ from app.query_processor import query_processor
 from app.schema_embedder import schema_embedder
 from app.embeddings import embedding_manager
 from app.sql_security import sql_validator
-import os
 from pathlib import Path
+import os
 
 def create_detailed_error(user_message: str, debug_error: str = None, status_code: int = 400):
     """Create structured error response with optional debug info"""
@@ -170,7 +170,16 @@ async def embed_schema_endpoint():
         return {"error": str(e)}
 
 # Static file serving for production
-static_dir = Path("../../frontend/out")
+FILE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = FILE_DIR.parent.parent
+
+candidates = [
+    PROJECT_ROOT / "frontend" / "out",
+    Path("/frontend/out"),
+    Path(os.getenv("FRONTEND_OUT_DIR")) if os.getenv("FRONTEND_OUT_DIR") else None,
+]
+
+static_dir = next((p for p in candidates if p and p.exists()), None)
 
 if static_dir.exists():
     # Mount static files
