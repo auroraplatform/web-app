@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - CLICKHOUSE_HOST=${CLICKHOUSE_HOST:-host.docker.internal}
+      - CLICKHOUSE_PORT=${CLICKHOUSE_PORT:-8123}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-dev}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-dev}
+      - CLICKHOUSE_DATABASE=${CLICKHOUSE_DATABASE:-default}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      # Mount environment file if it exists (optional)
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
