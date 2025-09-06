@@ -31,11 +31,11 @@ print_error() {
 }
 
 # Configuration
-IMAGE_NAME="kocijancic/aurora"
+IMAGE_NAME="miyasatoka/aurora-web-app"
 TAG="latest"
 PLATFORMS="linux/amd64,linux/arm64"
 LOCAL_IMAGE_NAME="aurora:latest"
-LOCAL_CONTAINER_NAME="aurora"
+LOCAL_CONTAINER_NAME="aurora-web-app"
 LOCAL_PORT="8000"
 
 # Function to check prerequisites

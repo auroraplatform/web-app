@@ -1,10 +1,8 @@
 from doctest import debug
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
 from app.database import ch_client
 from app.schema import schema_inspector
 from app.llm import llm_client
@@ -13,18 +11,23 @@ from app.query_processor import query_processor
 from app.schema_embedder import schema_embedder
 from app.embeddings import embedding_manager
 from app.sql_security import sql_validator
+from app.schemas.schemas import QueryRequest, NaturalQueryRequest, ErrorResponse, ConnectionRequest, DisconnectRequest
+from app.services.ca_certificate_service import CACertificateService
+from app.services.connection_service import ConnectionService
 from pathlib import Path
 import os
+import boto3
+from botocore.exceptions import ClientError
 
 def create_detailed_error(user_message: str, debug_error: str = None, status_code: int = 400):
     """Create structured error response with optional debug info"""
-    detail = {
-        "success": False,
-        "user_message": user_message,
-        "debug_error": debug_error
-    }
+    error_detail = ErrorResponse(
+        success=False,
+        user_message=user_message,
+        debug_error=debug_error
+    )
 
-    raise HTTPException(status_code=status_code, detail=detail)
+    raise HTTPException(status_code=status_code, detail=error_detail.dict())
 
 app = FastAPI(title="NL to ClickHouse Query Tool")
 
@@ -47,17 +50,104 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Pydantic models for request validation
-class QueryRequest(BaseModel):
-    sql: str = Field(..., min_length=1, max_length=10000, description="SQL query to execute")
-    parameters: Optional[Dict[str, Any]] = Field(default=None, description="Query parameters")
-
-class NaturalQueryRequest(BaseModel):
-    query: str = Field(..., min_length=1, max_length=1000, description="Natural language query to process")
+# Initialize services
+ca_cert_service = CACertificateService()
+connection_service = ConnectionService()
 
 @app.get("/api")
 async def root():
     return {"message": "NL ClickHouse Query API"}
+
+@app.post("/api/upload-ca-cert")
+async def upload_ca_certificate(file: UploadFile = File(...)):
+    """Upload CA certificate to web-app EC2 instance"""
+    try:
+        content = await file.read()
+        result = ca_cert_service.upload_certificate(content, file.filename)
+        return result
+
+    except Exception as e:
+        create_detailed_error(
+            user_message=f"Certificate upload failed: {str(e)}",
+            debug_error=str(e),
+            status_code=400 if isinstance(e, (ValueError, FileNotFoundError, PermissionError)) else 500
+        )
+
+@app.post("/api/connect-kafka")
+async def connect_kafka(request: ConnectionRequest):
+    """Execute connect script with the uploaded CA certificate"""
+    try:
+          # Get the certificate info from the CA certificate service
+        if ca_cert_service.ca_cert_path:
+            connection_service.set_certificate_info(ca_cert_service.ca_cert_path)
+        else:
+            raise FileNotFoundError("No certificate uploaded. Please upload a CA certificate first.")
+            
+        result = connection_service.execute_connection_script(request.dict())
+        return result
+
+    except Exception as e:
+        create_detailed_error(
+            # user_message="Failed to connect to Kafka",
+            user_message=str(e),
+            debug_error=str(e),
+            status_code=400 if isinstance(e, (FileNotFoundError)) else 500
+        )
+
+@app.post("/api/disconnect-kafka")
+async def disconnect_kafka(request: DisconnectRequest):
+    """Execute disconnect script to remove a Kafka connection"""
+    try:
+        result = connection_service.execute_disconnect_script(request.name)
+        return result
+
+    except Exception as e:
+        create_detailed_error(
+            user_message="Failed to disconnect from Kafka",
+            debug_error=str(e),
+            status_code=500
+        )
+
+@app.get("/api/grafana-url")
+async def get_grafana_url():
+    """Get Grafana dashboard URL from SSM Parameter Store"""
+    try:
+        # Initialize SSM client
+        ssm_client = boto3.client('ssm', region_name=os.getenv('AWS_DEFAULT_REGION', 'us-east-1'))
+        
+        # Get Grafana URL from SSM Parameter Store
+        response = ssm_client.get_parameter(
+            Name='/aurora/grafana-url',
+            WithDecryption=False
+        )
+        
+        grafana_url = response['Parameter']['Value']
+        
+        return {
+            "success": True,
+            "grafana_url": grafana_url
+        }
+        
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        if error_code == 'ParameterNotFound':
+            create_detailed_error(
+                user_message="Grafana URL not found in configuration",
+                debug_error=f"SSM Parameter '/aurora/grafana-url' not found: {str(e)}",
+                status_code=404
+            )
+        else:
+            create_detailed_error(
+                user_message="Failed to retrieve Grafana URL",
+                debug_error=f"AWS SSM error: {str(e)}",
+                status_code=500
+            )
+    except Exception as e:
+        create_detailed_error(
+            user_message="Failed to retrieve Grafana URL",
+            debug_error=str(e),
+            status_code=500
+        )
 
 @app.get("/api/tables")
 async def get_tables():

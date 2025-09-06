@@ -7,6 +7,7 @@ class SchemaEmbedder:
         self.inspector = schema_inspector
         self.embedding_manager = embedding_manager
         self._embedded_elements = {}
+        self._last_schema_hash = None
     
     def embed_schema(self):
         """Embed all schema elements for semantic search"""
@@ -77,11 +78,22 @@ class SchemaEmbedder:
             description += f" with example values: {', '.join(column.sample_values[:3])}"
         
         return description
+
+    def _get_schema_hash(self):
+        """Get a hash of the current schema to detect changes"""
+        schema = self.inspector.get_all_tables_schema()
+        return hash(str(sorted(schema.keys())))
     
     def find_relevant_schema(self, natural_query: str, top_k: int = 10) -> List[Dict]:
         """Find schema elements relevant to natural language query"""
-        if not self._embedded_elements:
+        # if not self._embedded_elements:
+        #     self.embed_schema()
+        current_hash = self._get_schema_hash()
+    
+        # Re-embed if schema has changed or if no embeddings exist
+        if not self._embedded_elements or current_hash != self._last_schema_hash:
             self.embed_schema()
+            self._last_schema_hash = current_hash
         
         descriptions = list(self._embedded_elements.keys())
         similar_descriptions = self.embedding_manager.find_similar(

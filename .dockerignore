@@ -50,6 +50,7 @@ clickhouse-dev/
 # Tests
 tests/
 pytest.ini
+requirements-test.txt
 
 # Documentation
 README.md

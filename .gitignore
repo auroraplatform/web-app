@@ -366,3 +366,7 @@ settings.local.*
 
 # deploy
 /deploy/
+
+# Development and build directories
+clickhouse-dev/
+frontend/out/
